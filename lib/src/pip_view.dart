@@ -5,11 +5,14 @@ import 'raw_pip_view.dart';
 
 class PIPView extends StatefulWidget {
   final PIPViewCorner initialCorner;
+  final double initialCornerTopPadding;
+  final double initialCornerBottomPadding;
   final double? floatingWidth;
   final double? floatingHeight;
   final double? floatingBorderRadius;
+  final EdgeInsets borderSpacing;
   final bool avoidKeyboard;
-  final bool useFixedSize;
+  final double keyboardPadding;
   final VoidCallback? onExpanded;
 
   final Widget Function(
@@ -21,11 +24,14 @@ class PIPView extends StatefulWidget {
     Key? key,
     required this.builder,
     this.initialCorner = PIPViewCorner.topRight,
+    this.initialCornerTopPadding = 0.0,
+    this.initialCornerBottomPadding = 0.0,
     this.floatingWidth,
     this.floatingHeight,
     this.floatingBorderRadius = 10.0,
+    this.borderSpacing = const EdgeInsets.all(16.0),
     this.avoidKeyboard = true,
-    this.useFixedSize = false,
+    this.keyboardPadding = 0,
     this.onExpanded,
   }) : super(key: key);
 
@@ -58,7 +64,7 @@ class PIPViewState extends State<PIPView> with TickerProviderStateMixin {
     final isFloating = _bottomWidget != null;
     return RawPIPView(
       avoidKeyboard: widget.avoidKeyboard,
-      useFixedSize: widget.useFixedSize,
+      keyboardPadding: widget.keyboardPadding,
       bottomWidget: isFloating
           ? Navigator(
               onGenerateInitialRoutes: (navigator, initialRoute) => [
@@ -77,6 +83,9 @@ class PIPViewState extends State<PIPView> with TickerProviderStateMixin {
       floatingWidth: widget.floatingWidth,
       floatingBorderRadius: widget.floatingBorderRadius,
       initialCorner: widget.initialCorner,
+      initialCornerTopPadding: widget.initialCornerTopPadding,
+      initialCornerBottomPadding: widget.initialCornerBottomPadding,
+      borderSpacing: widget.borderSpacing,
     );
   }
 }
