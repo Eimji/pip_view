@@ -2,6 +2,13 @@ import 'package:flutter/material.dart';
 
 import 'constants.dart';
 
+enum PIPViewCorner {
+  topLeft,
+  topRight,
+  bottomLeft,
+  bottomRight,
+}
+
 class RawPIPView extends StatefulWidget {
   final PIPViewCorner initialCorner;
   final double initialCornerTopPadding;
@@ -43,20 +50,16 @@ class RawPIPView extends StatefulWidget {
 class RawPIPViewState extends State<RawPIPView> with TickerProviderStateMixin {
   late final AnimationController _toggleFloatingAnimationController;
   late final AnimationController _dragAnimationController;
-  late PIPViewCorner _corner;
   Offset _dragOffset = Offset.zero;
   double _dragScale = 1.0;
   double _initialDragScale = 1.0;
   var _isDragging = false;
   var _isFloating = false;
   Widget? _bottomWidgetGhost;
-  Map<PIPViewCorner, Offset> _offsets = {};
 
   @override
   void initState() {
     super.initState();
-
-    _corner = widget.initialCorner;
 
     _toggleFloatingAnimationController = AnimationController(
       duration: defaultAnimationDuration,
@@ -89,20 +92,6 @@ class RawPIPViewState extends State<RawPIPView> with TickerProviderStateMixin {
     }
   }
 
-  void _updateCornersOffsets({
-    required Size spaceSize,
-    required Size widgetSize,
-    required EdgeInsets windowPadding,
-    required Offset currentOffset,
-  }) {
-    _offsets = _calculateOffsets(
-      spaceSize: spaceSize,
-      widgetSize: widgetSize,
-      windowPadding: windowPadding,
-      currentOffset: currentOffset,
-    );
-  }
-
   bool _isAnimating() {
     return _toggleFloatingAnimationController.isAnimating ||
         _dragAnimationController.isAnimating;
@@ -114,7 +103,6 @@ class RawPIPViewState extends State<RawPIPView> with TickerProviderStateMixin {
     _initialDragScale = _dragScale;
 
     setState(() {
-      _dragOffset = _offsets[_corner]!;
       _isDragging = true;
     });
   }
@@ -135,12 +123,7 @@ class RawPIPViewState extends State<RawPIPView> with TickerProviderStateMixin {
   void _onScaleEnd(ScaleEndDetails details) {
     if (!_isDragging) return;
 
-    final nearestCorner = _calculateNearestCorner(
-      offset: _dragOffset,
-      offsets: _offsets,
-    );
     setState(() {
-      _corner = nearestCorner;
       _isDragging = false;
     });
     _dragAnimationController.forward().whenCompleteOrCancel(() {
@@ -149,51 +132,25 @@ class RawPIPViewState extends State<RawPIPView> with TickerProviderStateMixin {
     });
   }
 
-  PIPViewCorner _calculateNearestCorner({
-    required Offset offset,
-    required Map<PIPViewCorner, Offset> offsets,
-  }) {
-    _CornerDistance calculateDistance(PIPViewCorner corner) {
-      final distance = offsets[corner]!
-          .translate(
-            -offset.dx,
-            -offset.dy,
-          )
-          .distanceSquared;
-      return _CornerDistance(
-        corner: corner,
-        distance: distance,
-      );
-    }
-
-    final distances = [PIPViewCorner.left, PIPViewCorner.right]
-        .map(calculateDistance)
-        .toList();
-
-    distances.sort((cd0, cd1) => cd0.distance.compareTo(cd1.distance));
-
-    return distances.first.corner;
-  }
-
-  Map<PIPViewCorner, Offset> _calculateOffsets({
+  Offset _fitOffset({
     required Size spaceSize,
     required Size widgetSize,
     required EdgeInsets windowPadding,
-    required Offset currentOffset,
+    Offset? currentOffset,
   }) {
-    Offset getOffsetForCorner(PIPViewCorner corner) {
-      final left = widget.borderSpacing.left + windowPadding.left;
-      final top = widget.borderSpacing.top + windowPadding.top;
-      final right = spaceSize.width -
-          widgetSize.width -
-          windowPadding.right -
-          widget.borderSpacing.right;
-      final bottom = spaceSize.height -
-          widgetSize.height -
-          windowPadding.bottom -
-          widget.borderSpacing.bottom;
+    final left = widget.borderSpacing.left + windowPadding.left;
+    final top = widget.borderSpacing.top + windowPadding.top;
+    final right = spaceSize.width -
+        widgetSize.width -
+        windowPadding.right -
+        widget.borderSpacing.right;
+    final bottom = spaceSize.height -
+        widgetSize.height -
+        windowPadding.bottom -
+        widget.borderSpacing.bottom;
 
-      switch (corner) {
+    if (currentOffset == null) {
+      switch (widget.initialCorner) {
         case PIPViewCorner.topLeft:
           return Offset(left, top + widget.initialCornerTopPadding);
         case PIPViewCorner.topRight:
@@ -202,36 +159,26 @@ class RawPIPViewState extends State<RawPIPView> with TickerProviderStateMixin {
           return Offset(left, bottom - widget.initialCornerBottomPadding);
         case PIPViewCorner.bottomRight:
           return Offset(right, bottom - widget.initialCornerBottomPadding);
-        case PIPViewCorner.left:
-          if (currentOffset.dy < top) {
-            return Offset(left, top);
-          } else if (currentOffset.dy > bottom) {
-            return Offset(left, bottom);
-          } else {
-            return Offset(left, currentOffset.dy);
-          }
-        case PIPViewCorner.right:
-          if (currentOffset.dy < top) {
-            return Offset(right, top);
-          } else if (currentOffset.dy > bottom) {
-            return Offset(right, bottom);
-          } else {
-            return Offset(right, currentOffset.dy);
-          }
         default:
           throw UnimplementedError();
       }
-    }
+    } else {
+      double dx = currentOffset.dx, dy = currentOffset.dy;
 
-    final corners = _dragOffset == Offset.zero
-        ? PIPViewCorner.values
-        : [PIPViewCorner.left, PIPViewCorner.right];
-    final Map<PIPViewCorner, Offset> offsets = {};
-    for (final corner in corners) {
-      offsets[corner] = getOffsetForCorner(corner);
-    }
+      if (currentOffset.dx < left) {
+        dx = left;
+      } else if (currentOffset.dx > right) {
+        dx = right;
+      }
 
-    return offsets;
+      if (currentOffset.dy > bottom) {
+        dy = bottom;
+      } else if (currentOffset.dy < top) {
+        dy = top;
+      }
+
+      return Offset(dx, dy);
+    }
   }
 
   @override
@@ -287,29 +234,30 @@ class RawPIPViewState extends State<RawPIPView> with TickerProviderStateMixin {
             floatingWidth = ratio * floatingHeight;
           }
 
-          if (floatingWidth < initialFloatingWidth) {
-            _dragScale *= initialFloatingWidth / floatingWidth;
-            floatingWidth = initialFloatingWidth;
-            floatingHeight = initialFloatingHeight;
+          if (initialFloatingWidth < maxWidth &&
+              initialFloatingHeight < maxHeight) {
+            if (floatingWidth < initialFloatingWidth) {
+              _dragScale *= initialFloatingWidth / floatingWidth;
+              floatingWidth = initialFloatingWidth;
+              floatingHeight = initialFloatingHeight;
+            }
+            if (floatingHeight < initialFloatingHeight) {
+              _dragScale *= initialFloatingHeight / floatingHeight;
+              floatingHeight = initialFloatingHeight;
+              floatingWidth = initialFloatingWidth;
+            }
           }
-          if (floatingHeight < initialFloatingHeight) {
-            _dragScale *= initialFloatingHeight / floatingHeight;
-            floatingHeight = initialFloatingHeight;
-            floatingWidth = initialFloatingWidth;
-          }
+
+          _dragOffset = _fitOffset(
+            spaceSize: Size(width, height),
+            widgetSize: Size(floatingWidth, floatingHeight),
+            windowPadding: windowPadding,
+            currentOffset: _dragOffset,
+          );
         }
 
         final floatingWidgetSize = Size(floatingWidth, floatingHeight);
         final fullWidgetSize = Size(width, height);
-
-        _updateCornersOffsets(
-          spaceSize: fullWidgetSize,
-          widgetSize: floatingWidgetSize,
-          windowPadding: windowPadding,
-          currentOffset: _dragOffset,
-        );
-
-        final calculatedOffset = _offsets[_corner];
 
         // BoxFit.cover
         final widthRatio = floatingWidth / width;
@@ -342,7 +290,7 @@ class RawPIPViewState extends State<RawPIPView> with TickerProviderStateMixin {
                       ? _dragOffset
                       : Tween<Offset>(
                           begin: _dragOffset,
-                          end: calculatedOffset,
+                          end: _dragOffset,
                         ).transform(_dragAnimationController.isAnimating
                           ? dragAnimationValue
                           : toggleFloatingAnimationValue);
@@ -401,23 +349,4 @@ class RawPIPViewState extends State<RawPIPView> with TickerProviderStateMixin {
       },
     );
   }
-}
-
-enum PIPViewCorner {
-  topLeft,
-  topRight,
-  bottomLeft,
-  bottomRight,
-  left,
-  right,
-}
-
-class _CornerDistance {
-  final PIPViewCorner corner;
-  final double distance;
-
-  _CornerDistance({
-    required this.corner,
-    required this.distance,
-  });
 }
